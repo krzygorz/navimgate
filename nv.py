@@ -45,93 +45,67 @@ def find_buttons(root):
     recur(root)
     return buttons
 
-def clickOn(self, acc):
+def clickOn(acc):
     print("click!", acc)
     acc.queryAction().doAction(0)
 
 def get_ndigits(n, base):
-    digits = 0
+    digits = 1
     while n > base:
-        ret += 1
-        n//base
+        digits += 1
+        n //= base
     return digits
 def genTag(n, length, chars):
+    print(length)
     base = len(chars)
     ret = ""
+    n += 1
     while n:
         ret += chars[n % base]
         n //= base
     return ret.ljust(length, chars[0])
 
+def boxes_exts(boxes):
+    return [(tag, acc.get_extents(pyatspi.DESKTOP_COORDS)) for tag, acc in boxes]
+
 class Navimgate:
     def __init__(self):
         self.select_keys = "fjghdk"
+        self.early_click = False
         self.boxes = []
+        self.overlay = None
         self.inputpos = 0
-        self.tag_id = 1
-        self.reset()
-    def reset(self):
-        for box,tag,acc in self.boxes:
-            box.close()
-        self.boxes = []
-        self.inputpos = 0
-        self.tag_id = 1
-    def highlight(self, acc : pyatspi.Accessible):
-        # try:
-        #     kb = acc.queryAction().getKeyBinding(0)
-        # except GLib.Error:
-        #     print("An Accessible disappeared!")
-        #     return
-        # # print(win_extents.x, win_extents.y)
-
-        # if kb:
-        #     s = kb
-        # else:
-        #     s = "fd"
-        tag = genTag(self.tag_id, 3, self.select_keys)
-        self.tag_id += 1
-
-        extents = acc.get_extents(pyatspi.DESKTOP_COORDS)
-        # print(extents.x, extents.y, extents.width, extents.height)
-        if len(self.boxes)==4:
-            box = AltHighlight([(tag, extents)], self.input_key)
-        box = Highlight(extents.x, extents.y,
-                        extents.width, extents.height,
-                        FILL_COLOR, FILL_ALPHA, BORDER_COLOR, BORDER_ALPHA,
-                        2.0, 0)
-        box.setTag(tag)
-        self.boxes.append((box, tag, acc))
-        box.highlight()
 
     def selectButton(self, window):
         buttons = find_buttons(window)
-        AltHighlight(
-            [for x in ]
+        ndigits = get_ndigits(len(buttons)+1, len(self.select_keys))
+        self.boxes = [(genTag(n, ndigits, self.select_keys), acc) for n, acc in enumerate(buttons)]
+        self.overlay = AltHighlight(
+            boxes_exts(self.boxes),
+            self.input_key
         )
 
-    def input_key(self, key):
-        if isinstance(key, keyboard.KeyCode):
-            key = key.char
-        print(key)
-        if not self.boxes or key not in select_keys:
-            return False
-        success = False
-        newboxes = [] #since we can't delete in-place
-        for box, tag, acc in self.boxes:
-            if tag[self.inputpos] != key:
-                box.close()
-                continue
+    def resetInput(self):
+        self.overlay.close()
+        self.inputpos = 0
+        self.boxes = []
 
-            newboxes.append((box,tag,acc))
-            if len(tag)-1 == self.inputpos:
-                self.clickOn(acc)
-                success = True
-                break
-        self.boxes = newboxes
-        if success:
-            self.reset()
-        else:
-            self.inputpos += 1
+    def input_key(self, key):
+        if not self.boxes or key not in self.select_keys:
+            self.resetInput()
+            return False
+        self.boxes = [(tag, acc) for (tag,acc) in self.boxes if tag[self.inputpos] == key]
+
+        if len(self.boxes) == 1:
+            tag, acc = self.boxes[0]
+            if self.early_click or len(tag) == self.inputpos+1:
+                clickOn(acc)
+                self.resetInput()
+                return True
+
+        self.inputpos += 1
+        GLib.idle_add(self.overlay.set_boxes, boxes_exts(self.boxes))
+        return False
 
 nav = Navimgate()
 def trigger():

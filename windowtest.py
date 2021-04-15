@@ -27,14 +27,20 @@ class Highlight(gtk.Window):
     def drawBox(self, cr, tag, ext):
         cr.rectangle(ext.x, ext.y, ext.width, ext.height)
         cr.move_to(ext.x+5, ext.y+ext.height-5)
-        cr.set_font_size(13)
+        cr.set_font_size(15) #TODO: use pango?
         cr.show_text(tag)
         cr.set_line_width(2)
         cr.stroke()
+
+    # if we wanted to be clever, we could try to redraw only the parts
+    # where the boxes disappear but would that acually improve performance?
+    def set_boxes(self, boxes):
+        self.boxes = boxes
+        self.queue_draw()
     def _onExpose(self, widget, event):
         window = self.get_window()
         cr = window.cairo_create()
-        cr.set_source_rgb(0, 1, 0)
+        cr.set_source_rgb(1, 0, 0)
 
         for tag, ext in self.boxes:
             self.drawBox(cr, tag, ext)
@@ -42,5 +48,3 @@ class Highlight(gtk.Window):
         #this or hardware keycode?
         if event.type == Gdk.EventType.KEY_PRESS:
             self.key_callback(chr(Gdk.keyval_to_unicode(event.keyval)))
-    def close(self):
-        self.close()
