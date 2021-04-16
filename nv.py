@@ -9,8 +9,7 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import GLib
 from gi.repository import Gtk
 
-from buttonbox import Highlight, FILL_ALPHA, FILL_COLOR, BORDER_COLOR, BORDER_ALPHA
-from windowtest import Highlight as AltHighlight
+from windowtest import Highlight
 import maintrigger
 
 min_size = 2
@@ -25,11 +24,21 @@ def is_button(acc : pyatspi.Accessible):
     if not "Action" in pyatspi.listInterfaces(acc):
         return False
 
-    win_extents = acc.get_extents(pyatspi.WINDOW_COORDS)
-    if (win_extents.x < 0 or
-        win_extents.y < 0 or
-        win_extents.width <= min_size or
-        win_extents.height <= min_size):
+    #qt apps report wrong relative coords
+    #win_extents = acc.get_extents(pyatspi.WINDOW_COORDS)
+    # if (win_extents.x < 1 or
+    #     win_extents.y < 1 or
+    #     win_extents.width <= min_size or
+    #     win_extents.height <= min_size):
+    #     print("bad win exts")
+    #     return False
+
+    extents = acc.get_extents(pyatspi.DESKTOP_COORDS)
+    if (extents.x < 1 or
+        extents.y < 1 or
+        extents.width <= min_size or
+        extents.height <= min_size):
+        print("bad exts")
         return False
     return acc.getState().contains(pyatspi.STATE_SHOWING)
 
@@ -47,6 +56,10 @@ def find_buttons(root):
 
 def clickOn(acc):
     print("click!", acc)
+    iface = acc.queryAction()
+    if iface.nActions != 1:
+        for n in range(iface.nActions):
+            print(acc, n, iface.getName(n))
     acc.queryAction().doAction(0)
 
 def get_ndigits(n, base):
@@ -56,7 +69,6 @@ def get_ndigits(n, base):
         n //= base
     return digits
 def genTag(n, length, chars):
-    print(length)
     base = len(chars)
     ret = ""
     n += 1
@@ -80,7 +92,7 @@ class Navimgate:
         buttons = find_buttons(window)
         ndigits = get_ndigits(len(buttons)+1, len(self.select_keys))
         self.boxes = [(genTag(n, ndigits, self.select_keys), acc) for n, acc in enumerate(buttons)]
-        self.overlay = AltHighlight(
+        self.overlay = Highlight(
             boxes_exts(self.boxes),
             self.input_key
         )

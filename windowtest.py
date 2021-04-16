@@ -24,13 +24,34 @@ class Highlight(gtk.Window):
         self.show_all()
         self.fullscreen()
 
-    def drawBox(self, cr, tag, ext):
+    def outlineTag(self, cr, tag, ext):
+        cr.set_source_rgb(1, 0, 0)
         cr.rectangle(ext.x, ext.y, ext.width, ext.height)
         cr.move_to(ext.x+5, ext.y+ext.height-5)
         cr.set_font_size(15) #TODO: use pango?
         cr.show_text(tag)
         cr.set_line_width(2)
         cr.stroke()
+
+    def labelTag(self, cr, tag, ext):
+        height = 20
+        vpad = 6
+        hpad = 2
+        xoffset = 1
+        yoffset = 1
+        ext.x += xoffset
+        ext.y += yoffset
+        textExts = cr.text_extents(tag)
+
+        cr.set_source_rgba(0,0,0,0.5)
+        cr.rectangle(ext.x, ext.y, textExts.width+hpad*2, height+vpad)
+        cr.fill()
+
+        cr.set_source_rgba(1,1,1,1)
+        # I have no idea what I'm doing
+        cr.move_to(ext.x+hpad, ext.y+(textExts.height+height+vpad)/2)
+        cr.set_font_size(15)
+        cr.show_text(tag)
 
     # if we wanted to be clever, we could try to redraw only the parts
     # where the boxes disappear but would that acually improve performance?
@@ -40,10 +61,9 @@ class Highlight(gtk.Window):
     def _onExpose(self, widget, event):
         window = self.get_window()
         cr = window.cairo_create()
-        cr.set_source_rgb(1, 0, 0)
 
         for tag, ext in self.boxes:
-            self.drawBox(cr, tag, ext)
+            self.labelTag(cr, tag, ext)
     def on_key_press_event(self, widget, event):
         #this or hardware keycode?
         if event.type == Gdk.EventType.KEY_PRESS:
