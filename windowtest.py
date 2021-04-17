@@ -34,6 +34,8 @@ class Highlight(gtk.Window):
         cr.stroke()
 
     def labelTag(self, cr, tag, ext):
+        if ext.x < 0 or ext.y < 0:
+            print("unfiltered bad extents???")
         height = 20
         vpad = 6
         hpad = 2
@@ -41,16 +43,17 @@ class Highlight(gtk.Window):
         yoffset = 1
         ext.x += xoffset
         ext.y += yoffset
+        cr.set_font_size(15)
         textExts = cr.text_extents(tag)
 
         cr.set_source_rgba(0,0,0,0.5)
         cr.rectangle(ext.x, ext.y, textExts.width+hpad*2, height+vpad)
+        # print(tag, ext.x, ext.y, textExts)
         cr.fill()
 
         cr.set_source_rgba(1,1,1,1)
         # I have no idea what I'm doing
         cr.move_to(ext.x+hpad, ext.y+(textExts.height+height+vpad)/2)
-        cr.set_font_size(15)
         cr.show_text(tag)
 
     # if we wanted to be clever, we could try to redraw only the parts
@@ -59,11 +62,15 @@ class Highlight(gtk.Window):
         self.boxes = boxes
         self.queue_draw()
     def _onExpose(self, widget, event):
+        maxLabelSize = 60
         window = self.get_window()
         cr = window.cairo_create()
 
         for tag, ext in self.boxes:
-            self.labelTag(cr, tag, ext)
+            if ext.width > maxLabelSize and ext.height > maxLabelSize:
+                self.outlineTag(cr,tag,ext)
+            else:
+                self.labelTag(cr, tag, ext)
     def on_key_press_event(self, widget, event):
         #this or hardware keycode?
         if event.type == Gdk.EventType.KEY_PRESS:

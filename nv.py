@@ -20,10 +20,7 @@ def active_window():
             if window.getState().contains(pyatspi.STATE_ACTIVE):
                 return window
 
-def is_button(acc : pyatspi.Accessible):
-    if not "Action" in pyatspi.listInterfaces(acc):
-        return False
-
+def is_visible(acc : pyatspi.Accessible):
     #qt apps report wrong relative coords
     #win_extents = acc.get_extents(pyatspi.WINDOW_COORDS)
     # if (win_extents.x < 1 or
@@ -38,29 +35,53 @@ def is_button(acc : pyatspi.Accessible):
         extents.y < 1 or
         extents.width <= min_size or
         extents.height <= min_size):
-        print("bad exts")
         return False
     return acc.getState().contains(pyatspi.STATE_SHOWING)
+def should_prune(acc : pyatspi.Accessible):
+    return not is_visible(acc)
 
+#TODO: maybe keep a continuosly updated copy of the tree like accerciser does
 def find_buttons(root):
+    start_t = time.perf_counter()
+    counter = 0
     buttons = []
+    def add(x):
+        nonlocal counter
+        counter += 1
+        if is_visible(x):
+            buttons.append(x)
     def recur(node):
         if not node:
             return
-        if is_button(node):
-            buttons.append(node)
+        interfaces = pyatspi.listInterfaces(node)
+        if should_prune(node):
+            return
+        if "Selection" in interfaces:
+            for child in node:
+                add(child)
+        if "Action" in interfaces:
+            add(node)
         for child in node:
             recur(child)
     recur(root)
+    print("searching took {:f}s".format(time.perf_counter()-start_t))
+    print("total {:d} accessibles traversed".format(counter))
     return buttons
 
 def clickOn(acc):
     print("click!", acc)
-    iface = acc.queryAction()
-    if iface.nActions != 1:
-        for n in range(iface.nActions):
-            print(acc, n, iface.getName(n))
-    acc.queryAction().doAction(0)
+    interfaces = pyatspi.listInterfaces(acc)
+    if "Action" in interfaces:
+        actions = acc.queryAction()
+        if actions.nActions != 1:
+            pass
+        for n in range(actions.nActions):
+            print(acc, n, actions.getName(n))
+        actions.doAction(0)
+
+    parent = acc.parent
+    if "Selection" in pyatspi.listInterfaces(parent):
+        parent.querySelection().selectChild(acc.getIndexInParent())
 
 def get_ndigits(n, base):
     digits = 1
@@ -92,10 +113,12 @@ class Navimgate:
         buttons = find_buttons(window)
         ndigits = get_ndigits(len(buttons)+1, len(self.select_keys))
         self.boxes = [(genTag(n, ndigits, self.select_keys), acc) for n, acc in enumerate(buttons)]
-        self.overlay = Highlight(
-            boxes_exts(self.boxes),
-            self.input_key
-        )
+        def gtk_f():
+            self.overlay = Highlight(
+                boxes_exts(self.boxes),
+                self.input_key
+            )
+        GLib.idle_add(gtk_f)
 
     def resetInput(self):
         self.overlay.close()
@@ -121,7 +144,8 @@ class Navimgate:
 
 nav = Navimgate()
 def trigger():
-    GLib.idle_add(lambda: nav.selectButton(active_window()))
+    print("trigger")
+    nav.selectButton(active_window())
 def exit_app():
     print("quitting")
     GLib.idle_add(Gtk.main_quit)
