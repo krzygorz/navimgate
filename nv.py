@@ -36,9 +36,24 @@ def is_visible(acc : pyatspi.Accessible):
         extents.width <= min_size or
         extents.height <= min_size):
         return False
-    return acc.getState().contains(pyatspi.STATE_SHOWING)
+    state_i = acc.getState()
+    required = [
+        pyatspi.STATE_SHOWING,
+        # pyatspi.STATE_VISIBLE,
+        # pyatspi.STATE_ENABLED,
+        # pyatspi.STATE_SENSITIVE,
+    ]
+    for req in required:
+        if not state_i.contains(req):
+            return False
+    return True
 def should_prune(acc : pyatspi.Accessible):
     return not is_visible(acc)
+def should_label(acc):
+    if not is_visible(acc):
+        return False
+    return True
+    # return acc.getState().contains(pyatspi.STATE_FOCUSABLE) #questionable
 
 #TODO: maybe keep a continuosly updated copy of the tree like accerciser does
 def find_buttons(root):
@@ -48,7 +63,7 @@ def find_buttons(root):
     def add(x):
         nonlocal counter
         counter += 1
-        if is_visible(x):
+        if should_label(x):
             buttons.append(x)
     def recur(node):
         if not node:
@@ -66,6 +81,7 @@ def find_buttons(root):
     recur(root)
     print("searching took {:f}s".format(time.perf_counter()-start_t))
     print("total {:d} accessibles traversed".format(counter))
+    print("{:d} buttons found".format(len(buttons)))
     return buttons
 
 def clickOn(acc):

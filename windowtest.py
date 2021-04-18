@@ -2,6 +2,10 @@ from gi.repository import Gtk as gtk
 from gi.repository import GLib, Gdk
 import cairo
 
+def intersects(a,b):
+    # print(a.x, a.y, a.width, a.height)
+    return not (a.x + a.width < b.x or a.y + a.height < b.y or a.x > b.x + b.width or a.y > b.y + b.height)
+
 class Highlight(gtk.Window):
     def __init__(self, boxes, key_callback):
         gtk.Window.__init__(self)#, type=gtk.WindowType.POPUP)
@@ -46,6 +50,9 @@ class Highlight(gtk.Window):
         cr.set_font_size(15)
         textExts = cr.text_extents(tag)
 
+        # if overlap:
+        #cr.set_source_rgba(1,0,0,0.5)
+        # else:
         cr.set_source_rgba(0,0,0,0.5)
         cr.rectangle(ext.x, ext.y, textExts.width+hpad*2, height+vpad)
         # print(tag, ext.x, ext.y, textExts)
