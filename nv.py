@@ -39,9 +39,9 @@ def is_visible(acc : pyatspi.Accessible):
     state_i = acc.getState()
     required = [
         pyatspi.STATE_SHOWING,
-        # pyatspi.STATE_VISIBLE,
-        # pyatspi.STATE_ENABLED,
-        # pyatspi.STATE_SENSITIVE,
+        pyatspi.STATE_VISIBLE,
+        pyatspi.STATE_ENABLED,
+        pyatspi.STATE_SENSITIVE,
     ]
     for req in required:
         if not state_i.contains(req):
@@ -52,20 +52,25 @@ def should_prune(acc : pyatspi.Accessible):
 def should_label(acc):
     if not is_visible(acc):
         return False
+    # return acc.getState().contains(pyatspi.STATE_FOCUSABLE) #removes too much (eg firefox)
     return True
-    # return acc.getState().contains(pyatspi.STATE_FOCUSABLE) #questionable
 
 #TODO: maybe keep a continuosly updated copy of the tree like accerciser does
 def find_buttons(root):
     start_t = time.perf_counter()
     counter = 0
     buttons = []
-    def add(x):
+    def add(x, parents):
         nonlocal counter
         counter += 1
         if should_label(x):
             buttons.append(x)
-    def recur(node):
+
+        # for p in parents:
+        #     if p in buttons:
+        #         print("removing parent")
+        #         buttons.remove(p)
+    def recur(node, parents):
         if not node:
             return
         interfaces = pyatspi.listInterfaces(node)
@@ -73,12 +78,12 @@ def find_buttons(root):
             return
         if "Selection" in interfaces:
             for child in node:
-                add(child)
+                add(child, parents)
         if "Action" in interfaces:
-            add(node)
+            add(node, parents)
         for child in node:
-            recur(child)
-    recur(root)
+            recur(child, parents+[node])
+    recur(root, [])
     print("searching took {:f}s".format(time.perf_counter()-start_t))
     print("total {:d} accessibles traversed".format(counter))
     print("{:d} buttons found".format(len(buttons)))
