@@ -6,6 +6,8 @@ Navimgate assists users impaired by exposure to vim in using GUI apps. It aims t
 
 Press (Ctrl+Alt+H for now but this will change) to trigger hint mode. Then enter the sequence corresponding to the button you want to press. Pressing any other button will exit hint mode.
 
+![](https://user-images.githubusercontent.com/7050221/115587533-14271380-a2ce-11eb-974f-916ecfe0ad73.gif)
+
 ## Installation
 
 (TODO: make a proper python package)

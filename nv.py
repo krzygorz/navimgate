@@ -31,8 +31,8 @@ def is_visible(acc : pyatspi.Accessible):
     #     return False
 
     extents = acc.get_extents(pyatspi.DESKTOP_COORDS)
-    if (extents.x < 1 or
-        extents.y < 1 or
+    if (extents.x < 0 or
+        extents.y < 0 or
         extents.width <= min_size or
         extents.height <= min_size):
         return False
