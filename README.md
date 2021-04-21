@@ -1,6 +1,6 @@
 # Navimgate
 
-Navimgate assists users impaired by exposure to vim in using GUI apps. It aims to provide functionality similar to [vimium](https://github.com/philc/vimium)'s hint mode, but for all apps supporting [AT-SPI](https://gitlab.gnome.org/GNOME/pyatspi2), not just the web browser.
+Navimgate assists users impaired by exposure to vim in using GUI apps. It aims to provide functionality similar to [vimium](https://github.com/philc/vimium)'s hint mode, but for all apps supporting accessibility via [AT-SPI](https://gitlab.gnome.org/GNOME/pyatspi2), not just the web browser.
 
 ## Usage
 
@@ -20,6 +20,18 @@ This needs the following packages from main repo:
 - `python-atspi`
 
 as well as the `pynput` package (available on pypi and [AUR](https://aur.archlinux.org/packages/python-pynput/)).
+
+## Enabling accessibility
+
+Not all apps expose the accessibility interface by default. If your app doesn't seem to show any accessible buttons try the following command:
+
+```
+gsettings set org.gnome.desktop.interface toolkit-accessibility true
+```
+
+### Chromium and Electron apps
+
+Set the environment variable `ACCESSIBILITY_ENABLED=1` and run the app with `--force-renderer-accessibility`.
 
 ## Known issues
 
