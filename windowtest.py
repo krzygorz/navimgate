@@ -1,11 +1,15 @@
+import gi
 from gi.repository import Gtk as gtk
-from gi.repository import GLib, Gdk
+gi.require_version('PangoCairo', '1.0')
+from gi.repository import GLib, Gdk, Pango, PangoCairo
 import cairo
 
 def intersects(a,b):
     # print(a.x, a.y, a.width, a.height)
     return not (a.x + a.width < b.x or a.y + a.height < b.y or a.x > b.x + b.width or a.y > b.y + b.height)
 
+
+#TODO: Just for fun try to use raw GDK, without GTK. Maybe even try out GDK4.
 class Highlight(gtk.Window):
     def __init__(self, boxes, key_callback):
         gtk.Window.__init__(self)#, type=gtk.WindowType.POPUP)
@@ -31,11 +35,16 @@ class Highlight(gtk.Window):
     def outlineTag(self, cr, tag, ext):
         cr.set_source_rgb(1, 0, 0)
         cr.rectangle(ext.x, ext.y, ext.width, ext.height)
-        cr.move_to(ext.x+5, ext.y+ext.height-5)
-        cr.set_font_size(15) #TODO: use pango?
-        cr.show_text(tag)
         cr.set_line_width(2)
         cr.stroke()
+
+        cr.move_to(ext.x+2, ext.y+2)
+
+        layout = PangoCairo.create_layout (cr)
+        layout.set_text(tag, -1)
+        desc = Pango.font_description_from_string ("monospace 12")
+        layout.set_font_description(desc)
+        PangoCairo.show_layout (cr, layout)
 
     def labelTag(self, cr, tag, ext):
         if ext.x < 0 or ext.y < 0:
@@ -47,21 +56,22 @@ class Highlight(gtk.Window):
         yoffset = 1
         ext.x += xoffset
         ext.y += yoffset
-        cr.set_font_size(15)
-        textExts = cr.text_extents(tag)
 
-        # if overlap:
-        #cr.set_source_rgba(1,0,0,0.5)
-        # else:
+        layout = PangoCairo.create_layout (cr)
+        layout.set_text(tag, -1)
+        desc = Pango.font_description_from_string ("monospace 12")
+        layout.set_font_description(desc)
+
+        logical_exts, ink_exts = layout.get_pixel_extents()
+
+        #I have no idea what I'm doing
         cr.set_source_rgba(0,0,0,0.5)
-        cr.rectangle(ext.x, ext.y, textExts.width+hpad*2, height+vpad)
-        # print(tag, ext.x, ext.y, textExts)
+        cr.rectangle(ext.x, ext.y, ink_exts.width+hpad*2, height+vpad)
         cr.fill()
 
         cr.set_source_rgba(1,1,1,1)
-        # I have no idea what I'm doing
-        cr.move_to(ext.x+hpad, ext.y+(textExts.height+height+vpad)/2)
-        cr.show_text(tag)
+        cr.move_to(ext.x+hpad, ext.y+vpad/2)
+        PangoCairo.show_layout (cr, layout)
 
     # if we wanted to be clever, we could try to redraw only the parts
     # where the boxes disappear but would that acually improve performance?
