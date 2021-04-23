@@ -9,7 +9,7 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import GLib
 from gi.repository import Gtk
 
-from windowtest import Highlight
+from windowtest import Overlay, HintMode, MoveMode
 import maintrigger
 
 min_size = 2
@@ -48,12 +48,16 @@ def is_visible(acc : pyatspi.Accessible):
             return False
     return True
 def should_prune(acc : pyatspi.Accessible):
+    # Too strict, eg. qalculate
+    # But this is just an optimization and some
+    # caching system is needed anyway
     return not is_visible(acc)
+
+#TODO: filter by role
 def should_label(acc):
     if not is_visible(acc):
         return False
-    # return acc.getState().contains(pyatspi.STATE_FOCUSABLE) #removes too much (eg firefox)
-    return True
+    return is_visible(acc)
 
 #TODO: maybe keep a continuosly updated copy of the tree like accerciser does
 def find_buttons(root):
@@ -88,6 +92,15 @@ def find_buttons(root):
     print("total {:d} accessibles traversed".format(counter))
     print("{:d} buttons found".format(len(buttons)))
     return buttons
+
+def get_actions(acc):
+    ret = []
+    interfaces = pyatspi.listInterfaces(acc)
+    if "Action" in interfaces:
+        actions = acc.queryAction()
+        for n in range(actions.nActions):
+            ret.append(actions.getName(n))
+    return ret
 
 def clickOn(acc):
     print("click!", acc)
@@ -134,12 +147,9 @@ class Navimgate:
         buttons = find_buttons(window)
         ndigits = get_ndigits(len(buttons)+1, len(self.select_keys))
         self.boxes = [(genTag(n, ndigits, self.select_keys), acc) for n, acc in enumerate(buttons)]
+        mode = HintMode(boxes_exts(self.boxes), self.inputpos)
         def gtk_f():
-            self.overlay = Highlight(
-                boxes_exts(self.boxes),
-                self.inputpos,
-                self.input_key,
-            )
+            self.overlay = Overlay(self.input_key, mode)
         GLib.idle_add(gtk_f)
 
     def resetInput(self):
@@ -156,12 +166,15 @@ class Navimgate:
         if len(self.boxes) == 1:
             tag, acc = self.boxes[0]
             if self.early_click or len(tag) == self.inputpos+1:
-                clickOn(acc)
-                self.resetInput()
+                self.overlay.mode = MoveMode(acc.get_extents(pyatspi.DESKTOP_COORDS), get_actions(acc))
+                GLib.idle_add(self.overlay.queue_draw)
+                # clickOn(acc)
+                # self.resetInput()
                 return True
 
         self.inputpos += 1
-        GLib.idle_add(self.overlay.set_boxes, boxes_exts(self.boxes), self.inputpos)
+        self.overlay.mode.set_boxes(boxes_exts(self.boxes), self.inputpos)
+        GLib.idle_add(self.overlay.queue_draw)
         return False
 
 nav = Navimgate()
