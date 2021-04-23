@@ -137,12 +137,13 @@ class Navimgate:
         def gtk_f():
             self.overlay = Highlight(
                 boxes_exts(self.boxes),
-                self.input_key
+                self.inputpos,
+                self.input_key,
             )
         GLib.idle_add(gtk_f)
 
     def resetInput(self):
-        self.overlay.close()
+        GLib.idle_add(self.overlay.close)
         self.inputpos = 0
         self.boxes = []
 
@@ -160,7 +161,7 @@ class Navimgate:
                 return True
 
         self.inputpos += 1
-        GLib.idle_add(self.overlay.set_boxes, boxes_exts(self.boxes))
+        GLib.idle_add(self.overlay.set_boxes, boxes_exts(self.boxes), self.inputpos)
         return False
 
 nav = Navimgate()

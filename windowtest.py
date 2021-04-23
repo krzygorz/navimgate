@@ -11,10 +11,15 @@ def intersects(a,b):
 
 #TODO: Just for fun try to use raw GDK, without GTK. Maybe even try out GDK4.
 class Highlight(gtk.Window):
-    def __init__(self, boxes, key_callback):
+    def __init__(self, boxes, inputpos, key_callback):
         gtk.Window.__init__(self)#, type=gtk.WindowType.POPUP)
         self.boxes = boxes
         self.key_callback = key_callback
+        self.inputpos = inputpos
+        self.typed_color = Pango.Color()
+        Pango.Color.parse(self.typed_color, "#aaaaaa")
+
+        self.font = Pango.font_description_from_string ("monospace 12")
 
         self._composited = self.get_screen().is_composited()
         if self._composited:
@@ -42,9 +47,22 @@ class Highlight(gtk.Window):
 
         layout = PangoCairo.create_layout (cr)
         layout.set_text(tag, -1)
-        desc = Pango.font_description_from_string ("monospace 12")
-        layout.set_font_description(desc)
+        layout.set_font_description(self.font)
         PangoCairo.show_layout (cr, layout)
+
+    def make_layout(self, cr, tag):
+        layout = PangoCairo.create_layout (cr)
+        layout.set_text(tag, -1)
+        attrlist = Pango.AttrList()
+        attr = Pango.attr_foreground_new(
+            self.typed_color.red,
+            self.typed_color.blue,
+            self.typed_color.green)
+        attr.end_index = self.inputpos
+        attrlist.insert(attr)
+        layout.set_attributes(attrlist)
+        layout.set_font_description(self.font)
+        return layout
 
     def labelTag(self, cr, tag, ext):
         if ext.x < 0 or ext.y < 0:
@@ -54,29 +72,32 @@ class Highlight(gtk.Window):
         hpad = 2
         xoffset = 1
         yoffset = 1
-        ext.x += xoffset
-        ext.y += yoffset
+        x = ext.x + xoffset
+        y = ext.y + yoffset
 
-        layout = PangoCairo.create_layout (cr)
-        layout.set_text(tag, -1)
-        desc = Pango.font_description_from_string ("monospace 12")
-        layout.set_font_description(desc)
-
+        layout = self.make_layout(cr, tag)
         logical_exts, ink_exts = layout.get_pixel_extents()
 
-        #I have no idea what I'm doing
         cr.set_source_rgba(0,0,0,0.5)
-        cr.rectangle(ext.x, ext.y, ink_exts.width+hpad*2, height+vpad)
+        #I have no idea what I'm doing
+        cr.rectangle(
+            x+ink_exts.x,
+            y+ink_exts.y,
+            ink_exts.width+hpad*2,
+            height+vpad
+        )
         cr.fill()
 
         cr.set_source_rgba(1,1,1,1)
-        cr.move_to(ext.x+hpad, ext.y+vpad/2)
+        cr.move_to(x+hpad, y+vpad/2)
+        PangoCairo.update_layout(cr, layout)
         PangoCairo.show_layout (cr, layout)
 
     # if we wanted to be clever, we could try to redraw only the parts
     # where the boxes disappear but would that acually improve performance?
-    def set_boxes(self, boxes):
+    def set_boxes(self, boxes, inputpos):
         self.boxes = boxes
+        self.inputpos = inputpos
         self.queue_draw()
     def _onExpose(self, widget, event):
         maxLabelSize = 60
