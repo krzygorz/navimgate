@@ -4,90 +4,33 @@ gi.require_version('PangoCairo', '1.0')
 from gi.repository import GLib, Gdk, Pango, PangoCairo
 import cairo
 
+import pyatspi
+
+from enum import Enum
+from functools import namedtuple
+
+BoxInfo = namedtuple("BoxInfo", "tag acc ext")
+
+class Msg(Enum):
+    CLOSE = 0
+    UPDATE = 1
+    NOTHING = 2
+
 def intersects(a,b):
     return not (a.x + a.width < b.x or a.y + a.height < b.y or a.x > b.x + b.width or a.y > b.y + b.height)
 
+
 class Mode:
+    def handle_input(self, char):
+        raise NotImplementedError
     def draw(self, cr):
         raise NotImplementedError
-class HintMode(Mode):
-    def __init__(self, boxes, inputpos):
-        self.boxes = boxes
-        self.inputpos = inputpos
-        self.typed_color = Pango.Color()
-        Pango.Color.parse(self.typed_color, "#aaaaaa")
-        self.font = Pango.font_description_from_string ("Helvetica, Arial, sans-serif 12")
-
-    def outlineTag(self, cr, tag, ext):
-        cr.set_source_rgb(1, 0, 0)
-        cr.rectangle(ext.x, ext.y, ext.width, ext.height)
-        cr.set_line_width(2)
-        cr.stroke()
-
-        cr.move_to(ext.x+2, ext.y+2)
-
-        layout = self.make_layout(cr, tag)
-        PangoCairo.show_layout (cr, layout)
-
-    def make_layout(self, cr, tag):
-        layout = PangoCairo.create_layout (cr)
-        layout.set_text(tag, -1)
-        attrlist = Pango.AttrList()
-        attr = Pango.attr_foreground_new(
-            self.typed_color.red,
-            self.typed_color.blue,
-            self.typed_color.green)
-        attr.end_index = self.inputpos
-        attrlist.insert(attr)
-        layout.set_attributes(attrlist)
-        layout.set_font_description(self.font)
-        return layout
-
-    def labelTag(self, cr, tag, ext):
-        if ext.x < 0 or ext.y < 0:
-            print("unfiltered bad extents???")
-        height = 20
-        vpad = 6
-        hpad = 2
-        xoffset = 1
-        yoffset = 1
-        x = ext.x + xoffset
-        y = ext.y + yoffset
-
-        layout = self.make_layout(cr, tag)
-        logical_exts, ink_exts = layout.get_pixel_extents()
-
-        cr.set_source_rgba(0,0,0,0.5)
-        #I have no idea what I'm doing
-        cr.rectangle(
-            x+ink_exts.x,
-            y+ink_exts.y,
-            ink_exts.width+hpad*2,
-            height+vpad
-        )
-        cr.fill()
-
-        cr.set_source_rgba(1,1,1,1)
-        cr.move_to(x+hpad, y+vpad/2)
-        PangoCairo.update_layout(cr, layout)
-        PangoCairo.show_layout (cr, layout)
-
-    def set_boxes(self, boxes, inputpos):
-        self.boxes = boxes
-        self.inputpos = inputpos
-
-    def draw(self, cr):
-        maxLabelSize = 60
-        for tag, ext in self.boxes:
-            if ext.width > maxLabelSize and ext.height > maxLabelSize:
-                self.outlineTag(cr,tag,ext)
-            else:
-                self.labelTag(cr, tag, ext)
 
 class MoveMode(Mode):
     def __init__(self, exts, actions):
         self.exts = exts
-        self.action_text = "\n".join((str(n)+". "+name for n, name in enumerate(actions)))
+        self.actions = actions
+        self.action_text = "\n".join((str(n)+". "+name for n, (name, callback) in enumerate(actions)))
         self.font = Pango.font_description_from_string ("Helvetica, Arial, sans-serif 12")
 
     def draw(self, cr):
@@ -122,14 +65,19 @@ class MoveMode(Mode):
         cr.set_line_width(2)
         cr.stroke()
 
+    def handle_input(self, key):
+        if not key.isdigit():
+            return Msg.CLOSE
+        name, callback = self.actions[int(key)]
+        callback()
+        return Msg.CLOSE
 
 # TODO: widget for each box
 # or just for fun try to use raw GDK, without GTK
 # TODO: GTK4
 class Overlay(gtk.Window):
-    def __init__(self, key_callback, mode):
+    def __init__(self, mode):
         gtk.Window.__init__(self)#, type=gtk.WindowType.POPUP)
-        self.key_callback = key_callback
         self.mode = mode
 
         self._composited = self.get_screen().is_composited()
@@ -152,6 +100,14 @@ class Overlay(gtk.Window):
         self.mode.draw(self.get_window().cairo_create())
 
     def on_key_press_event(self, widget, event):
+        if event.type != Gdk.EventType.KEY_PRESS:
+            return
         #this or hardware keycode?
-        if event.type == Gdk.EventType.KEY_PRESS:
-            self.key_callback(chr(Gdk.keyval_to_unicode(event.keyval)))
+        msg = self.mode.handle_input(chr(Gdk.keyval_to_unicode(event.keyval)))
+        if isinstance(msg, Mode):
+            self.mode = msg
+            GLib.idle_add(self.queue_draw)
+        elif msg == Msg.CLOSE:
+            GLib.idle_add(self.close)
+        elif msg == Msg.UPDATE:
+            GLib.idle_add(self.queue_draw)

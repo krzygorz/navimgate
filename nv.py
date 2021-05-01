@@ -9,7 +9,8 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import GLib
 from gi.repository import Gtk
 
-from windowtest import Overlay, HintMode, MoveMode
+from hintmode import HintMode
+from windowtest import Overlay, MoveMode, BoxInfo
 import maintrigger
 
 min_size = 2
@@ -93,30 +94,6 @@ def find_buttons(root):
     print("{:d} buttons found".format(len(buttons)))
     return buttons
 
-def get_actions(acc):
-    ret = []
-    interfaces = pyatspi.listInterfaces(acc)
-    if "Action" in interfaces:
-        actions = acc.queryAction()
-        for n in range(actions.nActions):
-            ret.append(actions.getName(n))
-    return ret
-
-def clickOn(acc):
-    print("click!", acc)
-    interfaces = pyatspi.listInterfaces(acc)
-    if "Action" in interfaces:
-        actions = acc.queryAction()
-        if actions.nActions != 1:
-            pass
-        for n in range(actions.nActions):
-            print(acc, n, actions.getName(n))
-        actions.doAction(0)
-
-    parent = acc.parent
-    if "Selection" in pyatspi.listInterfaces(parent):
-        parent.querySelection().selectChild(acc.getIndexInParent())
-
 def get_ndigits(n, base):
     digits = 1
     while n > base:
@@ -132,50 +109,27 @@ def genTag(n, length, chars):
         n //= base
     return ret.ljust(length, chars[0])
 
-def boxes_exts(boxes):
-    return [(tag, acc.get_extents(pyatspi.DESKTOP_COORDS)) for tag, acc in boxes]
-
 class Navimgate:
     def __init__(self):
         self.select_keys = "fjghdk"
-        self.early_click = False
-        self.boxes = []
         self.overlay = None
-        self.inputpos = 0
 
     def selectButton(self, window):
         buttons = find_buttons(window)
         ndigits = get_ndigits(len(buttons)+1, len(self.select_keys))
-        self.boxes = [(genTag(n, ndigits, self.select_keys), acc) for n, acc in enumerate(buttons)]
-        mode = HintMode(boxes_exts(self.boxes), self.inputpos)
+        boxes = [
+            BoxInfo(
+                genTag(n, ndigits, self.select_keys),
+                acc,
+                acc.get_extents(pyatspi.DESKTOP_COORDS)
+            )
+            for n, acc in enumerate(buttons)
+        ]
+        mode = HintMode(boxes, self.select_keys)
+
         def gtk_f():
-            self.overlay = Overlay(self.input_key, mode)
+            self.overlay = Overlay(mode)
         GLib.idle_add(gtk_f)
-
-    def resetInput(self):
-        GLib.idle_add(self.overlay.close)
-        self.inputpos = 0
-        self.boxes = []
-
-    def input_key(self, key):
-        if not self.boxes or key not in self.select_keys:
-            self.resetInput()
-            return False
-        self.boxes = [(tag, acc) for (tag,acc) in self.boxes if tag[self.inputpos] == key]
-
-        if len(self.boxes) == 1:
-            tag, acc = self.boxes[0]
-            if self.early_click or len(tag) == self.inputpos+1:
-                self.overlay.mode = MoveMode(acc.get_extents(pyatspi.DESKTOP_COORDS), get_actions(acc))
-                GLib.idle_add(self.overlay.queue_draw)
-                # clickOn(acc)
-                # self.resetInput()
-                return True
-
-        self.inputpos += 1
-        self.overlay.mode.set_boxes(boxes_exts(self.boxes), self.inputpos)
-        GLib.idle_add(self.overlay.queue_draw)
-        return False
 
 nav = Navimgate()
 def trigger():
