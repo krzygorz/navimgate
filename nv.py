@@ -9,8 +9,8 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import GLib
 from gi.repository import Gtk
 
-from hintmode import HintMode
-from windowtest import Overlay, MoveMode, BoxInfo
+from hintmode import HintMode, BoxInfo
+from windowtest import Overlay, MoveMode
 import maintrigger
 
 min_size = 2
@@ -48,47 +48,27 @@ def is_visible(acc : pyatspi.Accessible):
         if not state_i.contains(req):
             return False
     return True
-def should_prune(acc : pyatspi.Accessible):
-    # Too strict, eg. qalculate
-    # But this is just an optimization and some
-    # caching system is needed anyway
-    return not is_visible(acc)
-
-#TODO: filter by role
-def should_label(acc):
-    if not is_visible(acc):
-        return False
-    return is_visible(acc)
 
 #TODO: maybe keep a continuosly updated copy of the tree like accerciser does
 def find_buttons(root):
     start_t = time.perf_counter()
     counter = 0
     buttons = []
-    def add(x, parents):
+    def recur(node, selectable):
         nonlocal counter
         counter += 1
-        if should_label(x):
-            buttons.append(x)
-
-        # for p in parents:
-        #     if p in buttons:
-        #         print("removing parent")
-        #         buttons.remove(p)
-    def recur(node, parents):
-        if not node:
+        if not node or not is_visible(node):
             return
         interfaces = pyatspi.listInterfaces(node)
-        if should_prune(node):
-            return
-        if "Selection" in interfaces:
-            for child in node:
-                add(child, parents)
-        if "Action" in interfaces:
-            add(node, parents)
+        if selectable or "Action" in interfaces:
+            buttons.append((node, selectable))
         for child in node:
-            recur(child, parents+[node])
-    recur(root, [])
+            child_selectable = (
+                "Selection" in interfaces and
+                child.getState().contains(pyatspi.STATE_SELECTABLE)
+            )
+            recur(child, child_selectable)
+    recur(root, False)
     print("searching took {:f}s".format(time.perf_counter()-start_t))
     print("total {:d} accessibles traversed".format(counter))
     print("{:d} buttons found".format(len(buttons)))
@@ -121,9 +101,10 @@ class Navimgate:
             BoxInfo(
                 genTag(n, ndigits, self.select_keys),
                 acc,
-                acc.get_extents(pyatspi.DESKTOP_COORDS)
+                acc.get_extents(pyatspi.DESKTOP_COORDS),
+                selectable
             )
-            for n, acc in enumerate(buttons)
+            for n, (acc, selectable) in enumerate(buttons)
         ]
         mode = HintMode(boxes, self.select_keys)
 

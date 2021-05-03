@@ -7,9 +7,6 @@ import cairo
 import pyatspi
 
 from enum import Enum
-from functools import namedtuple
-
-BoxInfo = namedtuple("BoxInfo", "tag acc ext")
 
 class Msg(Enum):
     CLOSE = 0

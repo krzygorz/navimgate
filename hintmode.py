@@ -6,35 +6,38 @@ import cairo
 import pyatspi
 
 from windowtest import Mode, Msg, MoveMode
+from functools import namedtuple
 
-def get_actions(acc):
+BoxInfo = namedtuple("BoxInfo", "tag acc ext selectable")
+
+quickTables = True
+
+def get_actions(box):
     ret = []
-    interfaces = pyatspi.listInterfaces(acc)
+    interfaces = pyatspi.listInterfaces(box.acc)
+
     if "Action" in interfaces:
-        actions = acc.queryAction()
+        actionNames = []
+
+        actions = box.acc.queryAction()
         for n in range(actions.nActions):
             name = actions.getName(n)
+            actionNames.append(name)
             #closures don't play well with for loops (https://stackoverflow.com/q/8946868/)
             def callback(n=n):
                 print(n)
                 actions.doAction(n)
             ret.append((name, callback))
+
+        if quickTables and {"expand or contract", "edit", "activate"} == set(actionNames):
+            n = actionNames.index("edit")
+            return ([("edit", lambda: actions.doAction(n))])
+
+    if box.selectable:
+        def callback():
+            box.acc.parent.querySelection().selectChild(box.acc.getIndexInParent())
+        ret.append(("select", callback))
     return ret
-
-def clickOn(acc):
-    print("click!", acc)
-    interfaces = pyatspi.listInterfaces(acc)
-    if "Action" in interfaces:
-        actions = acc.queryAction()
-        if actions.nActions != 1:
-            pass
-        for n in range(actions.nActions):
-            print(acc, n, actions.getName(n))
-        actions.doAction(0)
-
-    parent = acc.parent
-    if "Selection" in pyatspi.listInterfaces(parent):
-        parent.querySelection().selectChild(acc.getIndexInParent())
 
 class HintMode(Mode):
     def __init__(self, boxes, select_keys):
@@ -52,13 +55,13 @@ class HintMode(Mode):
         cr.rectangle(ext.x, ext.y, ext.width, ext.height)
         cr.set_line_width(2)
         cr.stroke()
+        cr.rectangle(ext.x, ext.y, ext.width, ext.height)
+        cr.set_source_rgba(0, 0, 0, 0.1)
+        cr.fill()
 
         cr.move_to(ext.x+2, ext.y+2)
 
-        layout = self.make_layout(cr, tag)
-        PangoCairo.show_layout (cr, layout)
-
-    def make_layout(self, cr, tag):
+    def make_tag_layout(self, cr, tag):
         layout = PangoCairo.create_layout (cr)
         layout.set_text(tag, -1)
         attrlist = Pango.AttrList()
@@ -72,7 +75,7 @@ class HintMode(Mode):
         layout.set_font_description(self.font)
         return layout
 
-    def labelTag(self, cr, tag, ext):
+    def labelTag(self, cr, tag, ext, selectable):
         if ext.x < 0 or ext.y < 0:
             print("unfiltered bad extents???")
         height = 20
@@ -83,10 +86,13 @@ class HintMode(Mode):
         x = ext.x + xoffset
         y = ext.y + yoffset
 
-        layout = self.make_layout(cr, tag)
+        layout = self.make_tag_layout(cr, tag)
         logical_exts, ink_exts = layout.get_pixel_extents()
 
-        cr.set_source_rgba(0,0,0,0.5)
+        if selectable:
+            cr.set_source_rgba(0,0,0.8,0.5)
+        else:
+            cr.set_source_rgba(0,0,0,0.5)
         #I have no idea what I'm doing
         cr.rectangle(
             x+ink_exts.x,
@@ -104,11 +110,10 @@ class HintMode(Mode):
     def draw(self, cr):
         maxLabelSize = 60
         for box in self.boxes:
-            tag, ext = box.tag, box.ext
+            tag, ext, selectable = box.tag, box.ext, box.selectable
             if ext.width > maxLabelSize and ext.height > maxLabelSize:
                 self.outlineTag(cr,tag,ext)
-            else:
-                self.labelTag(cr, tag, ext)
+            self.labelTag(cr, tag, ext, selectable)
 
     def handle_input(self, key):
         if not self.boxes or key not in self.select_keys:
@@ -118,11 +123,13 @@ class HintMode(Mode):
         if len(self.boxes) == 1:
             box = self.boxes[0]
             if self.early_click or len(box.tag) == self.inputpos+1:
-                actions = get_actions(box.acc) #FIXME: selection too
+                actions = get_actions(box) #FIXME: selection too
                 if len(actions) > 2:
                     return MoveMode(box.ext, actions)
                 else:
-                    clickOn(box.acc)
+                    name, callback = actions[0]
+                    print("click!", name)
+                    callback()
                     return Msg.CLOSE
 
         self.inputpos += 1
