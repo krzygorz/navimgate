@@ -16,6 +16,25 @@ class Msg(Enum):
 def intersects(a,b):
     return not (a.x + a.width < b.x or a.y + a.height < b.y or a.x > b.x + b.width or a.y > b.y + b.height)
 
+def layout_rect(cr, x, y, layout, bgcolor, top=False, height=24, hpad=2):
+    if top:
+        y -= height
+
+    logical_exts, ink_exts = layout.get_pixel_extents()
+
+    cr.set_source_rgba(*bgcolor)
+    cr.rectangle(
+        x,
+        y,
+        ink_exts.width+hpad*2,
+        height
+    )
+    cr.fill()
+
+    cr.set_source_rgba(1,1,1,1)
+    cr.move_to(x+hpad, y + (height - ink_exts.height)/2)
+    PangoCairo.update_layout(cr, layout)
+    PangoCairo.show_layout (cr, layout)
 
 class Mode:
     def handle_input(self, char):
@@ -31,6 +50,7 @@ class MoveMode(Mode):
         self.font = Pango.font_description_from_string ("Helvetica, Arial, sans-serif 12")
 
     def draw(self, cr):
+        #TODO: layout rect
         vpad = 6
         hpad = 2
         xoffset = 1
@@ -77,6 +97,8 @@ class Overlay(gtk.Window):
         gtk.Window.__init__(self)#, type=gtk.WindowType.POPUP)
         self.mode = mode
 
+        self.font = Pango.font_description_from_string ("Helvetica, Arial, sans-serif 12")
+
         self._composited = self.get_screen().is_composited()
         if self._composited:
             # Prepare window for transparency.
@@ -94,7 +116,13 @@ class Overlay(gtk.Window):
         self.fullscreen()
 
     def _onExpose(self, widget, event):
-        self.mode.draw(self.get_window().cairo_create())
+        cr = self.get_window().cairo_create()
+        self.mode.draw(cr)
+        layout = PangoCairo.create_layout(cr)
+        layout.set_text("Mode", -1)
+        layout.set_font_description(self.font)
+        x1, y1, x2, y2 = cr.clip_extents()
+        layout_rect(cr, 10, y2-0, layout, (0,0,0,0.5), top=True)
 
     def on_key_press_event(self, widget, event):
         if event.type != Gdk.EventType.KEY_PRESS:

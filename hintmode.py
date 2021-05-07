@@ -5,7 +5,7 @@ from gi.repository import GLib, Gdk, Pango, PangoCairo
 import cairo
 import pyatspi
 
-from windowtest import Mode, Msg, MoveMode
+from windowtest import Mode, Msg, MoveMode, layout_rect
 from functools import namedtuple
 
 BoxInfo = namedtuple("BoxInfo", "tag acc ext selectable")
@@ -25,7 +25,7 @@ def get_actions(box):
             actionNames.append(name)
             #closures don't play well with for loops (https://stackoverflow.com/q/8946868/)
             def callback(n=n):
-                print(n)
+                print("selected action", n)
                 actions.doAction(n)
             ret.append((name, callback))
 
@@ -62,7 +62,7 @@ class HintMode(Mode):
         cr.move_to(ext.x+2, ext.y+2)
 
     def make_tag_layout(self, cr, tag):
-        layout = PangoCairo.create_layout (cr)
+        layout = PangoCairo.create_layout(cr)
         layout.set_text(tag, -1)
         attrlist = Pango.AttrList()
         attr = Pango.attr_foreground_new(
@@ -78,34 +78,11 @@ class HintMode(Mode):
     def labelTag(self, cr, tag, ext, selectable):
         if ext.x < 0 or ext.y < 0:
             print("unfiltered bad extents???")
-        height = 20
-        vpad = 6
-        hpad = 2
-        xoffset = 1
-        yoffset = 1
-        x = ext.x + xoffset
-        y = ext.y + yoffset
+
+        color = (0,0,0.8,0.5) if selectable else (0,0,0,0.5)
 
         layout = self.make_tag_layout(cr, tag)
-        logical_exts, ink_exts = layout.get_pixel_extents()
-
-        if selectable:
-            cr.set_source_rgba(0,0,0.8,0.5)
-        else:
-            cr.set_source_rgba(0,0,0,0.5)
-        #I have no idea what I'm doing
-        cr.rectangle(
-            x+ink_exts.x,
-            y+ink_exts.y,
-            ink_exts.width+hpad*2,
-            height+vpad
-        )
-        cr.fill()
-
-        cr.set_source_rgba(1,1,1,1)
-        cr.move_to(x+hpad, y+vpad/2)
-        PangoCairo.update_layout(cr, layout)
-        PangoCairo.show_layout (cr, layout)
+        layout_rect(cr, ext.x, ext.y, layout, color)
 
     def draw(self, cr):
         maxLabelSize = 60
