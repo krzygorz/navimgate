@@ -61,6 +61,9 @@ class HintMode(Mode):
 
         cr.move_to(ext.x+2, ext.y+2)
 
+    def name(self):
+        return "Hint Mode"
+
     def make_tag_layout(self, cr, tag):
         layout = PangoCairo.create_layout(cr)
         layout.set_text(tag, -1)

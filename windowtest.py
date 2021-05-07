@@ -6,6 +6,7 @@ import cairo
 
 import pyatspi
 
+from abc import ABC, abstractmethod
 from enum import Enum
 
 class Msg(Enum):
@@ -36,11 +37,16 @@ def layout_rect(cr, x, y, layout, bgcolor, top=False, height=24, hpad=2):
     PangoCairo.update_layout(cr, layout)
     PangoCairo.show_layout (cr, layout)
 
-class Mode:
+class Mode(ABC):
+    @abstractmethod
     def handle_input(self, char):
-        raise NotImplementedError
+        ...
+    @abstractmethod
     def draw(self, cr):
-        raise NotImplementedError
+        ...
+    @abstractmethod
+    def name(self):
+        ...
 
 class MoveMode(Mode):
     def __init__(self, exts, actions):
@@ -119,10 +125,10 @@ class Overlay(gtk.Window):
         cr = self.get_window().cairo_create()
         self.mode.draw(cr)
         layout = PangoCairo.create_layout(cr)
-        layout.set_text("Mode", -1)
+        layout.set_text(self.mode.name(), -1)
         layout.set_font_description(self.font)
         x1, y1, x2, y2 = cr.clip_extents()
-        layout_rect(cr, 10, y2-0, layout, (0,0,0,0.5), top=True)
+        layout_rect(cr, 10, y2-10, layout, (0,0,0,0.5), top=True)
 
     def on_key_press_event(self, widget, event):
         if event.type != Gdk.EventType.KEY_PRESS:
