@@ -10,7 +10,7 @@ from gi.repository import GLib
 from gi.repository import Gtk
 
 from hintmode import HintMode, BoxInfo
-from windowtest import Overlay, MoveMode
+from windowtest import Overlay, MoveMode, Msg
 import maintrigger
 
 min_size = 2
@@ -21,6 +21,7 @@ def active_window():
             if window.getState().contains(pyatspi.STATE_ACTIVE):
                 return window
 
+#FIXME: really need caching
 def is_visible(acc : pyatspi.Accessible):
     #qt apps report wrong relative coords
     #win_extents = acc.get_extents(pyatspi.WINDOW_COORDS)
@@ -49,6 +50,13 @@ def is_visible(acc : pyatspi.Accessible):
             return False
     return True
 
+#TODO: get rid of this, interleave get_actions with widget filtering
+def hasActions(acc):
+    interfaces = pyatspi.listInterfaces(acc)
+    if "Action" not in interfaces:
+        return False
+    return acc.queryAction().nActions > 0
+
 #TODO: maybe keep a continuosly updated copy of the tree like accerciser does
 def find_buttons(root):
     start_t = time.perf_counter()
@@ -57,10 +65,12 @@ def find_buttons(root):
     def recur(node, selectable):
         nonlocal counter
         counter += 1
+        #print(counter)
+        #time.sleep(0.05)
         if not node or not is_visible(node):
             return
         interfaces = pyatspi.listInterfaces(node)
-        if selectable or "Action" in interfaces:
+        if selectable or hasActions(node):
             buttons.append((node, selectable))
         for child in node:
             child_selectable = (
@@ -89,6 +99,47 @@ def genTag(n, length, chars):
         n //= base
     return ret.ljust(length, chars[0])
 
+quickTables = True
+def get_actions(acc, selectable):
+    ret = []
+    interfaces = pyatspi.listInterfaces(acc)
+
+    if "Action" in interfaces:
+        actionNames = []
+
+        actions = acc.queryAction()
+        for n in range(actions.nActions):
+            name = actions.getName(n)
+            actionNames.append(name)
+            #closures don't play well with for loops (https://stackoverflow.com/q/8946868/)
+            def callback(n=n):
+                print("selected action", n)
+                actions.doAction(n)
+            ret.append((name, callback))
+
+        if quickTables and {"expand or contract", "edit", "activate"} == set(actionNames):
+            n = actionNames.index("edit")
+            return ([("edit", lambda: actions.doAction(n))])
+
+    if selectable:
+        def callback():
+            acc.parent.querySelection().selectChild(acc.getIndexInParent())
+        ret.append(("select", callback))
+    return ret
+
+def acc_callback(acc, selectable):
+    def f():
+        actions = get_actions(acc, selectable)
+        if len(actions) == 0:
+            print("Received a button without any actions!")
+        if len(actions) > 2:
+            return MoveMode(acc.get_extents(pyatspi.DESKTOP_COORDS), actions)
+        name, callback = actions[0]
+        print("click!", name)
+        callback()
+        return Msg.CLOSE
+    return f
+
 class Navimgate:
     def __init__(self):
         self.select_keys = "fjghdk"
@@ -100,9 +151,9 @@ class Navimgate:
         boxes = [
             BoxInfo(
                 genTag(n, ndigits, self.select_keys),
-                acc,
                 acc.get_extents(pyatspi.DESKTOP_COORDS),
-                selectable
+                color = (0,0,0.8,0.5) if selectable else (0,0,0,0.5),
+                callback=acc_callback(acc, selectable)
             )
             for n, (acc, selectable) in enumerate(buttons)
         ]

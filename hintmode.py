@@ -8,36 +8,7 @@ import pyatspi
 from windowtest import Mode, Msg, MoveMode, layout_rect
 from functools import namedtuple
 
-BoxInfo = namedtuple("BoxInfo", "tag acc ext selectable")
-
-quickTables = True
-
-def get_actions(box):
-    ret = []
-    interfaces = pyatspi.listInterfaces(box.acc)
-
-    if "Action" in interfaces:
-        actionNames = []
-
-        actions = box.acc.queryAction()
-        for n in range(actions.nActions):
-            name = actions.getName(n)
-            actionNames.append(name)
-            #closures don't play well with for loops (https://stackoverflow.com/q/8946868/)
-            def callback(n=n):
-                print("selected action", n)
-                actions.doAction(n)
-            ret.append((name, callback))
-
-        if quickTables and {"expand or contract", "edit", "activate"} == set(actionNames):
-            n = actionNames.index("edit")
-            return ([("edit", lambda: actions.doAction(n))])
-
-    if box.selectable:
-        def callback():
-            box.acc.parent.querySelection().selectChild(box.acc.getIndexInParent())
-        ret.append(("select", callback))
-    return ret
+BoxInfo = namedtuple("BoxInfo", "tag ext color callback")
 
 class HintMode(Mode):
     def __init__(self, boxes, select_keys):
@@ -78,22 +49,19 @@ class HintMode(Mode):
         layout.set_font_description(self.font)
         return layout
 
-    def labelTag(self, cr, tag, ext, selectable):
-        if ext.x < 0 or ext.y < 0:
-            print("unfiltered bad extents???")
-
-        color = (0,0,0.8,0.5) if selectable else (0,0,0,0.5)
-
+    def labelTag(self, cr, tag, ext, color):
         layout = self.make_tag_layout(cr, tag)
         layout_rect(cr, ext.x, ext.y, layout, color)
 
     def draw(self, cr):
         maxLabelSize = 60
         for box in self.boxes:
-            tag, ext, selectable = box.tag, box.ext, box.selectable
+            tag, ext, color = box.tag, box.ext, box.color
+            if ext.x < 0 or ext.y < 0:
+                print("unfiltered bad extents???")
             if ext.width > maxLabelSize and ext.height > maxLabelSize:
                 self.outlineTag(cr,tag,ext)
-            self.labelTag(cr, tag, ext, selectable)
+            self.labelTag(cr, tag, ext, color)
 
     def handle_input(self, key):
         if not self.boxes or key not in self.select_keys:
@@ -103,14 +71,7 @@ class HintMode(Mode):
         if len(self.boxes) == 1:
             box = self.boxes[0]
             if self.early_click or len(box.tag) == self.inputpos+1:
-                actions = get_actions(box) #FIXME: selection too
-                if len(actions) > 2:
-                    return MoveMode(box.ext, actions)
-                else:
-                    name, callback = actions[0]
-                    print("click!", name)
-                    callback()
-                    return Msg.CLOSE
+                return box.callback()
 
         self.inputpos += 1
         return Msg.UPDATE

@@ -55,6 +55,9 @@ class MoveMode(Mode):
         self.action_text = "\n".join((str(n)+". "+name for n, (name, callback) in enumerate(actions)))
         self.font = Pango.font_description_from_string ("Helvetica, Arial, sans-serif 12")
 
+    def name(self):
+        return "Move Mode"
+
     def draw(self, cr):
         #TODO: layout rect
         vpad = 6
