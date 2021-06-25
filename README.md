@@ -35,5 +35,5 @@ Set the environment variable `ACCESSIBILITY_ENABLED=1` and run the app with `--f
 
 ## Known issues
 
-- Querying all the buttons' positions takes ~0.2s which is quite annoying.
-- I'm not able to get the AT-SPI key listener to work in QT apps, so pynput is used as a workaround. (This should be possible because it somehow works for Orca)
+- Querying all the buttons' positions is slow and the latency can be very annoying, making the program borderline unuseable.
+- I'm not able to get the AT-SPI key listener to work in QT apps, so pynput is used as a workaround. (This should be possible because it somehow works in Orca)

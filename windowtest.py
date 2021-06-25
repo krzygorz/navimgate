@@ -1,3 +1,7 @@
+"""
+This module implements things related to displaying stuff on the screen.
+MoveMode and perhaps other mode-related things may eventually be moved elsewhere.
+"""
 import gi
 from gi.repository import Gtk as gtk
 gi.require_version('PangoCairo', '1.0')
@@ -18,6 +22,7 @@ def intersects(a,b):
     return not (a.x + a.width < b.x or a.y + a.height < b.y or a.x > b.x + b.width or a.y > b.y + b.height)
 
 def layout_rect(cr, x, y, layout, bgcolor, top=False, height=24, hpad=2):
+    """Draws a pango Layout in a colored rectangle with some padding"""
     if top:
         y -= height
 
@@ -38,6 +43,7 @@ def layout_rect(cr, x, y, layout, bgcolor, top=False, height=24, hpad=2):
     PangoCairo.show_layout (cr, layout)
 
 class Mode(ABC):
+    """Represents a mode which can handle key presses and draw in the overlay window."""
     @abstractmethod
     def handle_input(self, char):
         ...
@@ -49,6 +55,11 @@ class Mode(ABC):
         ...
 
 class MoveMode(Mode):
+    """ MoveMode allows to select one of many callbacks associated to a rect on the screen
+
+    It should also allow the user to jump to the next or previous rect (corresponding to widgets)
+    (not implemented yet)
+    """
     def __init__(self, exts, actions):
         self.exts = exts
         self.actions = actions
@@ -59,7 +70,7 @@ class MoveMode(Mode):
         return "Move Mode"
 
     def draw(self, cr):
-        #TODO: layout rect
+        #TODO: refactor, use layout_rect
         vpad = 6
         hpad = 2
         xoffset = 1
@@ -98,14 +109,24 @@ class MoveMode(Mode):
         callback()
         return Msg.CLOSE
 
-# TODO: widget for each box
+# TODO ideas:
+# widget for each box
 # or just for fun try to use raw GDK, without GTK
-# TODO: GTK4
+# also try out GTK4
 class Overlay(gtk.Window):
-    def __init__(self, mode):
-        gtk.Window.__init__(self)#, type=gtk.WindowType.POPUP)
-        self.mode = mode
+    """Handles creating a fullscreen window for modes.
 
+    Also passes relevant messages to the currently active mode"""
+    def __init__(self, mode):
+        gtk.Window.__init__(self)
+
+        # # ugly hack because apparently popups can't be fullscreen
+        # gtk.Window.__init__(self, type=gtk.WindowType.POPUP)
+        # win = self.get_screen().get_active_window()
+        # geom = Gdk.Display.get_default().get_monitor_at_window(win).get_geometry()
+        # self.set_default_size(geom.width, geom.height)
+
+        self.mode = mode
         self.font = Pango.font_description_from_string ("Helvetica, Arial, sans-serif 12")
 
         self._composited = self.get_screen().is_composited()

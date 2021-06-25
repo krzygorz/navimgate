@@ -1,3 +1,23 @@
+"""
+This module contains functionality related to talking to AT-SPI,
+filtering widgets and calling actions. Ideally it should be the only
+module handling Accessible objects.
+
+It also happens to be the main module but this may change.
+
+When the hint mode is triggered, the active window's widget
+tree is traversed and clickable widgets are accumulated. This
+step should use as few AT-SPI calls as possible.
+
+Once we know how many clickabe widgets there are, we can assign tags
+to them, and pass them with callbacks and some other data to the hint
+mode object.
+
+Once a callback is called, a more fine-grained search for actions is
+preformed on the accessible. There are some heuristics to choose the
+best one, but if that fails we open MoveMode to let the user choose one.
+"""
+
 import random
 import pyatspi
 import time
@@ -23,6 +43,12 @@ def active_window():
 
 #FIXME: really need caching
 def is_visible(acc : pyatspi.Accessible):
+    """Checks if the Accessible is visible.
+
+    Uses several different checks to support apps written in various frameworks.
+    Note that there could in theory be a possibility where a visible widget is a child of a widget marked
+    as invisible (TODO: could this actually happen)?
+    """
     #qt apps report wrong relative coords
     #win_extents = acc.get_extents(pyatspi.WINDOW_COORDS)
     # if (win_extents.x < 1 or
@@ -50,8 +76,15 @@ def is_visible(acc : pyatspi.Accessible):
             return False
     return True
 
-#TODO: get rid of this, interleave get_actions with widget filtering
 def hasActions(acc):
+    """Checks if the Accessible has any actions available.
+
+    This function doesn't attempt to find the names of the functions to
+    minimize the number of calls to AT-SPI.
+
+    To get a complete list of actions, together with the possibility of selection,
+    use get_actions.
+    """
     interfaces = pyatspi.listInterfaces(acc)
     if "Action" not in interfaces:
         return False
@@ -59,6 +92,11 @@ def hasActions(acc):
 
 #TODO: maybe keep a continuosly updated copy of the tree like accerciser does
 def find_buttons(root):
+    """
+    Traverses the widget tree and tries to find ones that could be clicked on.
+    Returns: A list of pairs (Accessible, selectable), where selectable is a bool
+    indicating whether the object is a child of a widget with Selection interface.
+    """
     start_t = time.perf_counter()
     counter = 0
     buttons = []
@@ -85,12 +123,14 @@ def find_buttons(root):
     return buttons
 
 def get_ndigits(n, base):
+    """Returns how many digits n has in the given base"""
     digits = 1
     while n > base:
         digits += 1
         n //= base
     return digits
 def genTag(n, length, chars):
+    """Generate a tag for the nth widget out of given chars"""
     base = len(chars)
     ret = ""
     n += 1
@@ -101,6 +141,7 @@ def genTag(n, length, chars):
 
 quickTables = True
 def get_actions(acc, selectable):
+    """Returns a list of names and callbacks of all possible actions on an Accessible"""
     ret = []
     interfaces = pyatspi.listInterfaces(acc)
 
@@ -128,6 +169,7 @@ def get_actions(acc, selectable):
     return ret
 
 def acc_callback(acc, selectable):
+    """Creates a callback for interacting with an Accessible"""
     def f():
         actions = get_actions(acc, selectable)
         if len(actions) == 0:
@@ -157,7 +199,7 @@ class Navimgate:
             )
             for n, (acc, selectable) in enumerate(buttons)
         ]
-        mode = HintMode(boxes, self.select_keys)
+        mode = HintMode(boxes)#, self.select_keys)
 
         def gtk_f():
             self.overlay = Overlay(mode)
@@ -172,5 +214,8 @@ def exit_app():
     GLib.idle_add(Gtk.main_quit)
 
 maintrigger.PynputTrigger(trigger,exit_app)
+# def onKeystroke(event):
+#     print(event)
+# pyatspi.Registry.registerKeystrokeListener(onKeystroke)
 
 Gtk.main()
