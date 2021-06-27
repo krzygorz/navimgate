@@ -18,10 +18,8 @@ preformed on the accessible. There are some heuristics to choose the
 best one, but if that fails we open MoveMode to let the user choose one.
 """
 
-import random
 import pyatspi
 import time
-import os
 
 import gi
 #gi.require_version('Gtk', '4.0')
@@ -41,7 +39,8 @@ def active_window():
             if window.getState().contains(pyatspi.STATE_ACTIVE):
                 return window
 
-#FIXME: really need caching
+#TODO: need caching
+#atspi is supposed to do some caching already but it doesn't seem to work
 def is_visible(acc : pyatspi.Accessible):
     """Checks if the Accessible is visible.
 
@@ -100,7 +99,7 @@ def find_buttons(root):
     start_t = time.perf_counter()
     counter = 0
     buttons = []
-    def recur(node, selectable):
+    def recur(node, selectable, lev=0):
         nonlocal counter
         counter += 1
         #print(counter)
@@ -115,10 +114,12 @@ def find_buttons(root):
                 "Selection" in interfaces and
                 child.getState().contains(pyatspi.STATE_SELECTABLE)
             )
-            recur(child, child_selectable)
+            recur(child, child_selectable, lev+1)
     recur(root, False)
-    print("searching took {:f}s".format(time.perf_counter()-start_t))
+    t = time.perf_counter()-start_t
+    print("searching took {:f}s".format(t))
     print("total {:d} accessibles traversed".format(counter))
+    print("{:f} ms per accessible".format(t/counter * 1000))
     print("{:d} buttons found".format(len(buttons)))
     return buttons
 
@@ -199,23 +200,21 @@ class Navimgate:
             )
             for n, (acc, selectable) in enumerate(buttons)
         ]
-        mode = HintMode(boxes)#, self.select_keys)
+        mode = HintMode(boxes)
 
         def gtk_f():
             self.overlay = Overlay(mode)
         GLib.idle_add(gtk_f)
 
-nav = Navimgate()
-def trigger():
-    print("trigger")
-    nav.selectButton(active_window())
-def exit_app():
-    print("quitting")
-    GLib.idle_add(Gtk.main_quit)
+if __name__ == "__main__":
+    nav = Navimgate()
+    def trigger():
+        print("trigger")
+        #TODO: proper threading
+        GLib.idle_add(lambda: nav.selectButton(active_window()))
+    def exit_app():
+        print("quitting")
+        GLib.idle_add(Gtk.main_quit)
 
-maintrigger.PynputTrigger(trigger,exit_app)
-# def onKeystroke(event):
-#     print(event)
-# pyatspi.Registry.registerKeystrokeListener(onKeystroke)
-
-Gtk.main()
+    maintrigger.PynputTrigger(trigger,exit_app)
+    Gtk.main()

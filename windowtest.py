@@ -110,17 +110,20 @@ class MoveMode(Mode):
         return Msg.CLOSE
 
 # TODO ideas:
+# cover only the selected window
 # widget for each box
 # or just for fun try to use raw GDK, without GTK
 # also try out GTK4
 class Overlay(gtk.Window):
     """Handles creating a fullscreen window for modes.
 
-    Also passes relevant messages to the currently active mode"""
+    Also passes relevant messages to the currently active mode.
+    May be broken on displays with scaling etc.
+    """
     def __init__(self, mode):
         gtk.Window.__init__(self)
+        self.set_skip_taskbar_hint(True)
 
-        # # ugly hack because apparently popups can't be fullscreen
         # gtk.Window.__init__(self, type=gtk.WindowType.POPUP)
         # win = self.get_screen().get_active_window()
         # geom = Gdk.Display.get_default().get_monitor_at_window(win).get_geometry()

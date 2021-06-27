@@ -19,10 +19,9 @@ class HintMode(Mode):
 
     Pressing a key that doesn't correspond to any tag exits the mode.
     """
-    def __init__(self, boxes : list[BoxInfo]):#, select_keys):
+    def __init__(self, boxes : list[BoxInfo]):
         self.boxes = boxes
         self.inputpos = 0
-        #self.select_keys = select_keys
         self.early_click = False
 
         self.typed_color = Pango.Color()
@@ -75,8 +74,6 @@ class HintMode(Mode):
             self.labelTag(cr, tag, ext, color)
 
     def handle_input(self, key):
-        if not self.boxes:# or key not in self.select_keys:
-            return Msg.CLOSE
         self.boxes = [box for box in self.boxes if box.tag[self.inputpos] == key]
 
         if len(self.boxes) == 1:
@@ -85,4 +82,6 @@ class HintMode(Mode):
                 return box.callback()
 
         self.inputpos += 1
+        if not self.boxes:
+            return Msg.CLOSE
         return Msg.UPDATE
