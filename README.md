@@ -1,6 +1,6 @@
 # Navimgate
 
-Navimgate is like [vimium](https://github.com/philc/vimium)'s hint mode, but for all apps supporting accessibility via [AT-SPI](https://gitlab.gnome.org/GNOME/pyatspi2), not just the web browser.
+Navimgate is like [vimium](https://github.com/philc/vimium)'s hint mode, but for all apps supporting accessibility via [AT-SPI](https://gitlab.gnome.org/GNOME/pyatspi2), not just the web browser. This includes GTK, Electron and some QT apps.
 
 ## Usage
 
@@ -21,11 +21,11 @@ This needs the following packages from main repo:
 - `python-atspi`
 
 as well as the `pynput` package (available on pypi and [AUR](https://aur.archlinux.org/packages/python-pynput/)).
-I want to get rid of the `pynput` dependency, but because of some difficulties it is needed for now (see [Known Issues](#known-issues)).
+In the future the `pynput` dependency will be removed, but it is now used as a workaround (see [Known Issues](#known-issues)).
 
 ## Enabling accessibility
 
-Not all apps expose the accessibility interface by default. If your app doesn't seem to show any accessible buttons try the following command:
+Not all apps expose the accessibility interface by default. If your app doesn't show any accessible buttons try the following command:
 
 ```
 gsettings set org.gnome.desktop.interface toolkit-accessibility true
@@ -37,6 +37,6 @@ Set the environment variable `ACCESSIBILITY_ENABLED=1` and run the app with `--f
 
 ## Known issues
 
-- Querying all the buttons' positions is slow and the latency can be very annoying, making the program borderline unuseable.
-  AT-SPI is supposed to do caching, but apparently that is not enough.
+- Querying all the buttons' positions is slow and the latency can be very annoying, making the program borderline unusable with complex interfaces.
+  The python AT-SPI library is supposed to do caching, but apparently that is not enough.
 - I'm not able to get the AT-SPI key listener to work in QT apps, so pynput is used as a workaround. (This should be possible because it somehow works in Orca)
